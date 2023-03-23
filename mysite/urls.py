@@ -19,6 +19,7 @@ from staff import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('get_staff/',views.get_staff),
+    path('get_profile/<int:id>/',views.get_profile),
     path('intime/<int:id>/',views.intime),
     path('outtime/<int:id>/',views.outtime),
     path('login/',views.login),
@@ -30,4 +31,6 @@ urlpatterns = [
     path('get_list_delete/',views.get_list_delete),
     path('get_money/',views.get_single_record),
     path('add_settle_money/<int:id>/',views.settle_money),
+    path('add_money_log/<int:id>/',views.moneylog),
+    path('get_money_logs/' , views.get_money_logs),
 ]

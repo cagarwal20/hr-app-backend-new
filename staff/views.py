@@ -1,18 +1,23 @@
-from .models import Staff,AttendanceLogs
+from .models import Staff,AttendanceLogs,MoneyLogs
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework.renderers import JSONRenderer
-from staff.serializers import StaffSerializer
+from staff.serializers import StaffSerializer,MoneyLogsSerializer
 import datetime
 from django.utils.timezone import localtime
 import pytz
-from django.contrib.auth import authenticate,login
-from .forms import RegisterForm
-from django.db.models import F
+from django.contrib.auth import authenticate,login,get_user_model
+from .forms import UserRegistrationForm
+from django.db.models import F,Sum
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes
 
-@api_view(['GET'])
+
+@api_view(['GET']) 
+#@permission_classes([IsAuthenticated])
 def get_staff(request):
     object = Staff.objects.all()
+    # print(request.user.is_authenticated())
     serialized_data = StaffSerializer(object,many=True)
     return Response({"data":serialized_data.data},status=200)
 
@@ -60,10 +65,11 @@ def login(request):
         username = request.data['username']
         password = request.data['password']
         user = authenticate(request,username=username,password=password)
+        print(type(user))
         if user is None:
-            return Response({"response":"no login access"},status=200)
+            return Response({"response":"no login access"},status=400)
         else:
-            return Response({"response":"login success"},status=200)
+            return Response({"response":"login success","user":user},status=200)
         
 @api_view(['DELETE'])
 def delete_staff(request):
@@ -79,16 +85,23 @@ def delete_staff(request):
 # def signup(request):
 #     if request.method=="POST":
 
-
+User = get_user_model()
 
 @api_view(['POST'])
 def register(request):
-    if request.method == "POST":
-        form = RegisterForm(request.POST)
-        if form.is_valid():
-            form.save()
-            return Response({"response":"successful"},status=200)
-    return Response({"response":"not able to register"},status=200)
+    if request.method=="POST": 
+            form = UserRegistrationForm(request.data)
+            if form.is_valid():
+                username    = form.cleaned_data.get("username")
+                password1       = form.cleaned_data.get("password1")
+                password2    = form.cleaned_data.get("password2")
+                email = form.cleaned_data.get('email')
+                print(username,password1,password2,email)
+                new_user    = User.objects.create_user(username, email, password1)
+                print(new_user)
+                return Response({"success":"user successfully registered"} , status=200)
+            else:
+                return Response({"error":"fuck off"} , status=400)
 
 @api_view(['PATCH'])
 def edit_info(request,id):
@@ -149,7 +162,7 @@ def settle_money(request,id):
                 s_data.save()
                 return Response({"data":s_data.data},status=200)
         except Exception as e:
-            return Response({"error":str(e)},status=200)
+            return Response({"error":str(e)},status=400)
     
     try:
         object = Staff.objects.get(id=id)
@@ -161,4 +174,36 @@ def settle_money(request,id):
             s_data.save()
             return Response({"data":s_data.data},status=200)
     except Exception as e:
-        return Response({"error":str(e)},status=200)
+        return Response({"error":str(e)},status=400)
+    
+@api_view(['POST'])
+def moneylog(request,id):
+    try:
+        amount = request.data['money']
+        type = request.data['type']
+        details = request.data['details']
+        staff_object = Staff.objects.get(id=id)
+        moneylog_object = MoneyLogs.objects.create(
+            staff=staff_object,
+            amount=amount,
+            type=type,
+            time=datetime.datetime.now(),
+            details = details
+        )
+        serializer = MoneyLogsSerializer(moneylog_object)
+        return Response({"data":serializer.data},status=200)
+    except Exception as e:
+        return Response({"error":str(e)},status=400)
+    
+@api_view(['GET'])
+def get_money_logs(request):
+    objects = MoneyLogs.objects.all()
+    data = MoneyLogsSerializer(objects,many=True)
+    total_sum = MoneyLogs.objects.all().aggregate(total_sum=Sum('amount'))
+    return Response({"data":data.data,"total_sum":total_sum['total_sum']},status=200)
+
+@api_view(['GET'])
+def get_profile(request,id):
+    obj = Staff.objects.get(id=id)
+    serialized_data = StaffSerializer(obj)
+    return Response({"data":serialized_data.data},status=200)
